@@ -2,9 +2,10 @@
 
 function PCMan() {
     var canvas = document.getElementById("canvas");
+    this.prefs=new PrefHandler(this);
     this.conn=new Conn(this);
     this.view=new TermView(canvas);
-    this.buf=new TermBuf(80, 24);
+    this.buf=new TermBuf(this.prefs.Cols, this.prefs.Rows);
     this.buf.setView(this.view);
     this.view.setBuf(this.buf);
     this.view.setConn(this.conn);
@@ -13,6 +14,8 @@ function PCMan() {
     this.view.input.controllers.insertControllerAt(0, this.textboxControllers);   // to override default commands for inputbox
     this.os = Components.classes["@mozilla.org/xre/app-info;1"]
                  .getService(Components.interfaces.nsIXULRuntime).OS;
+
+    this.prefs.observe(true);
 }
 
 PCMan.prototype={
@@ -24,8 +27,12 @@ PCMan.prototype={
             port=parseInt(parts[1], 10);
         this.conn.connect(parts[0], port);
         
-        let temp = this;
-        this.conn.idleTimeout = setTimer( false, function (){ temp.conn.sendIdleString(); }, 180000 );
+        if(this.prefs.AntiIdleTime > 0) {
+            let temp = this;
+            this.conn.idleTimeout = setTimer( false, function (){
+                temp.conn.sendIdleString();
+            }, this.prefs.AntiIdleTime * 1000 );
+        }
     },
 
     close: function() {
@@ -36,10 +43,12 @@ PCMan.prototype={
 
         this.view.removeEventListener();
         this.view.input.controllers.removeController(this.textboxControllers);
+        this.prefs.observe(false);
 
         // added by Hemiola SUN 
         this.view.blinkTimeout.cancel();
-        this.conn.idleTimeout.cancel();
+        if(this.conn.idleTimeout)
+            this.conn.idleTimeout.cancel();
     },
 
     onConnect: function(conn) {
@@ -96,7 +105,10 @@ PCMan.prototype={
                 s = s.data.substring(0, len.value / 2);
                 s=s.replace(/\r\n/g, '\r');
                 s=s.replace(/\n/g, '\r');
-                this.conn.convSend(s, 'big5');
+                if(s.indexOf('\x1b') < 0 && this.prefs.LineWrap > 0)
+                    s = wrapText(s, this.prefs.LineWrap, '\r');
+                var charset = this.prefs.Encoding;
+                this.conn.convSend(s, charset);
             }
         }
     },

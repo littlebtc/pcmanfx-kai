@@ -162,7 +162,8 @@ TermView.prototype={
                 // don't draw hidden text
                 if(visible1 || visible2) { // at least one of the two bytes should be visible
                     var b5 = ch.ch + ch2.ch; // convert char to UTF-8 before drawing
-                    var u = this.conv.convertStringToUTF8(b5, 'big5',  true); // UTF-8
+                    var charset = this.conn.listener.prefs.Encoding;
+                    var u = this.conv.convertStringToUTF8(b5, charset,  true); // UTF-8
 
                     if(u) { // ch can be converted to valid UTF-8
                         var fg2 = ch2.getFg(); // fg of second byte
@@ -271,7 +272,8 @@ TermView.prototype={
     },
 
     onTextInput: function(text) {
-        this.conn.convSend(text, 'big5');
+        var charset = this.conn.listener.prefs.Encoding;
+        this.conn.convSend(text, charset);
     },
 
     onkeyPress: function(e) {
@@ -303,7 +305,10 @@ TermView.prototype={
         else if (!e.ctrlKey && !e.altKey && !e.shiftKey) {
             switch(e.keyCode){
             case 8:
-                conn.send('\b');
+                if(this.detectDBCS(true))
+                    conn.send('\b\b');
+                else
+                    conn.send('\b');
                 break;
             case 9:
                 conn.send('\t');
@@ -330,13 +335,19 @@ TermView.prototype={
                 conn.send('\x1b[1~');
                 break;
             case 37: //Arrow Left
-                conn.send('\x1b[D');
+                if(this.detectDBCS(true))
+                    conn.send('\x1b[D\x1b[D');
+                else
+                    conn.send('\x1b[D');
                 break;
             case 38: //Arrow Up
                 conn.send('\x1b[A');
                 break;
             case 39: //Arrow Right
-                conn.send('\x1b[C');
+                if(this.detectDBCS(false))
+                    conn.send('\x1b[C\x1b[C');
+                else
+                    conn.send('\x1b[C');
                 break;
             case 40: //Arrow Down
                 conn.send('\x1b[B');
@@ -345,15 +356,33 @@ TermView.prototype={
                 conn.send('\x1b[2~');
                 break;
             case 46: //DEL
-                conn.send('\x1b[3~');
+                if(this.detectDBCS(false))
+                    conn.send('\x1b[3~\x1b[3~');
+                else
+                    conn.send('\x1b[3~');
                 break;
             }
         }
     },
 
+    detectDBCS: function(back) {
+        if(!this.conn.listener.prefs.DetectDBCS || !this.buf)
+            return false;
+        var line = this.buf.lines[this.buf.curY];
+        if(back && this.buf.curX > 1)
+            return line[this.buf.curX-2].isLeadByte;
+        if(!back && this.buf.curX < this.buf.cols)
+            return line[this.buf.curX].isLeadByte;
+        return false;
+    },
+
     onResize: function() {
+        var cols = this.buf ? this.buf.cols : 80;
+        var rows = this.buf ? this.buf.rows : 24;
+        var win = document.getElementById('topwin');
+        this.canvas.height = win.clientHeight;
         var ctx = this.ctx;
-        this.chh = Math.floor(this.canvas.height / 24);
+        this.chh = Math.floor(this.canvas.height / rows);
         var font = this.chh + 'px monospace';
         ctx.font= font;
         ctx.textBaseline='top';
@@ -362,19 +391,18 @@ TermView.prototype={
         this.chw=Math.round(m.width/2);
 
         // if overflow, resize canvas again
-        var win = document.getElementById('topwin');
-        var overflowX = (this.chw * 80) - win.clientWidth;
+        var overflowX = (this.chw * cols) - win.clientWidth;
         if(overflowX > 0) {
           this.canvas.width = win.clientWidth;
-          this.chw = Math.floor(this.canvas.width / 80);
+          this.chw = Math.floor(this.canvas.width / cols);
           this.chh = this.chw*2;  // is it necessary to measureText?
           font = this.chh + 'px monospace';
           ctx.font= font;
-          this.canvas.height = this.chh * 24;
+          this.canvas.height = this.chh * rows;
         }
 
         if(this.buf) {
-            this.canvas.width = this.chw * this.buf.cols;
+            this.canvas.width = this.chw * cols;
             // font needs to be reset after resizing canvas
             ctx.font= font;
             ctx.textBaseline='top';
@@ -382,7 +410,7 @@ TermView.prototype={
         }
         else {
             // dump(this.chw + ', ' + this.chw * 80 + '\n');
-            this.canvas.width = this.chw * 80;
+            this.canvas.width = this.chw * cols;
             // font needs to be reset after resizing canvas
             ctx.font= font;
             ctx.textBaseline='top';
@@ -579,7 +607,7 @@ TermView.prototype={
             var cursor = this.mouseToColRow(event.pageX, event.pageY);
             if(!cursor) return;
             // FIXME: only handle left button
-            this.selection.selStart(false, cursor.col, cursor.row);
+            this.selection.selStart(event.shiftKey, cursor.col, cursor.row);
         }
     },
 
@@ -627,12 +655,17 @@ TermView.prototype={
         var col = cursor.col, row = cursor.row;
         var uris = this.buf.lines[row].uris;
         if (!uris) return;
+
+        // Event dispatching order: mousedown -> mouseup -> click
+        // For a common click, previous selection always collapses in mouseup
+        if (this.selection.hasSelection()) return;
+
         for (var i=0;i<uris.length;i++) {
             if (col >= uris[i][0] && col < uris[i][1]) { //@ < or <<
                 var uri = "";
                 for (var j=uris[i][0];j<uris[i][1];j++)
                     uri = uri + this.buf.lines[row][j].ch;
-                openURI(uri);
+                openURI(uri, this.conn.listener.prefs.NewTab);
             }
         }
     },

@@ -94,7 +94,7 @@ TermBuf.prototype={
     // From: http://snippets.dzone.com/posts/show/452
     //uriRegEx: /(ftp|http|https|telnet):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/ig,
     // Modified by Hemiola
-    uriRegEx : /(ftp|http|https|telnet):\/\/(\w+:{0,1}\w*@)?([\w\.]+)(:[0-9]+)?([\w#!;:.,\(?+=&%@!~\-\/])*/ig,
+    uriRegEx : /(ftp|http|https|telnet):\/\/(\w+:{0,1}\w*@)?([\w\.]+)(:[0-9]+)?([\w#!;:.,\(\)?+=&%@!~\-\/])*/ig,
 
     setView: function(view) {
         this.view = view;
@@ -132,7 +132,8 @@ TermBuf.prototype={
 
             if(this.curX >= cols) {
                 // next line
-                this.lineFeed();
+                if(this.view.conn.listener.prefs.LineFeed)
+                    this.lineFeed(); // some poor-designed bbs don't need it
                 this.curX=0;
                 line = lines[this.curY];
                 this.posChanged=true;
@@ -216,6 +217,9 @@ TermBuf.prototype={
                     line.uris=uris;
                     // dump(line.uris.length + "uris found\n");
                 }
+
+                if(this.view.conn.autoLoginStage > 0)
+                    this.view.conn.checkAutoLogin(row);
             }
         }
     },
@@ -422,8 +426,10 @@ TermBuf.prototype={
                 var bottom = this.bottom;
                 for(var row = this.top; row <= bottom; ++row) {
                     var line = lines[row];
-                    for(var col=0; col < cols;++col)
+                    for(var col=0; col < cols;++col) {
                         line[col].copyFrom(this.newChar);
+                        line[col].needUpdate=true;
+                    }
                 }
             }
         }
@@ -537,16 +543,71 @@ TermBuf.prototype={
 
       text = text.slice(colStart, colEnd);
       var conv = Components.classes["@mozilla.org/intl/utf8converterservice;1"].getService(Components.interfaces.nsIUTF8ConverterService);
+      var charset = this.view.conn.listener.prefs.Encoding;
       return text.map( function(c, col, line){
         if(!c.isLeadByte) {
           if(col >=1 && line[col-1].isLeadByte) { // second byte of DBCS char
             var prevC = line[col-1];
             var b5 = prevC.ch + c.ch;
-            return conv.convertStringToUTF8(b5, 'big5',  true);
+            return conv.convertStringToUTF8(b5, charset,  true);
           }
           else
             return c.ch;
         }
       }).join('');
+    },
+
+    onResize: function() {
+        var newcols = this.view.conn.listener.prefs.Cols;
+        var newrows = this.view.conn.listener.prefs.Rows;
+        if(newrows<this.rows) {
+            for(var row=this.rows-1; (row>newrows-1 && row>this.curY); --row)
+                this.lines.pop();
+            for(row=0; row<this.curY-newrows+1; ++row)
+                this.lines.shift();
+            if(this.cursorSaved) {
+                if(this.savedCurY<this.curY-newrows+1) this.savedCurY=0;
+                else if(this.curY>newrows-1)
+                    this.savedCurY-=this.curY-newrows+1;
+                if(this.savedCurY>=newrows) this.savedCurY=newrows-1;
+            }
+            if(this.curY>=newrows) this.curY=newrows-1;
+        } else {
+            for(var row=this.rows-1; row<newrows-1; ++row) {
+                var line=new Array(this.cols);
+                for(var col=0; col<this.cols; ++col)
+                    line[col]=new TermChar(' ');
+                this.lines.push(line);
+            }
+        }
+        if(newcols<this.cols) {
+            if(this.curX>newcols) this.curX=newcols-1;
+            if(this.cursorSaved && this.savedCurX>newcols)
+                this.savedCurX=newcols-1;
+            for(var row=0; row<newrows; ++row) {
+                for(var col=this.cols-1; col>newcols-1; --col)
+                    this.lines[row].pop();
+                if(this.lines[row][newcols-1].isLeadByte)
+                    this.lines[row][newcols-1].copyFrom(this.newChar);
+                // force the url to be updated
+                this.lines[row][newcols-1].needUpdate = true;
+                if(this.lines[row][newcols-2].isLeadByte)
+                    this.lines[row][newcols-2].needUpdate = true;
+            }
+        } else {
+            for(var row=0; row<newrows; ++row) {
+                for(var col=this.cols-1; col<newcols-1; ++col) {
+                    var ch=new TermChar(' ');
+                    this.lines[row].push(ch);
+                }
+            }
+        }
+        if(this.bottom==this.rows-1) this.bottom=newrows-1;
+        this.cols=newcols;
+        this.rows=newrows;
+        this.view.conn.sendNaws();
+        // url may need to be updated to aviod url range overflow
+        this.updateCharAttr();
+        this.view.onResize();
     }
 }

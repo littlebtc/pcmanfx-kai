@@ -1,0 +1,37 @@
+<!ENTITY options_pcmanoptions.label "PCMan Options">
+<!ENTITY options_sitesetting.label "Site settings">
+<!ENTITY options_default.label "Default">
+<!ENTITY options_add.label "Create">
+<!ENTITY options_del.label "Remove">
+<!ENTITY options_general.label "General">
+<!ENTITY options_connection.label "Connect">
+<!ENTITY options_about.label "About">
+<!ENTITY options_codepage.label "Codepage:">
+<!ENTITY options_column.label "Column:">
+<!ENTITY options_row.label "Row:">
+<!ENTITY options_linewrap1.label "Wrap line for copied texts longer than">
+<!ENTITY options_linewrap2.label "- 0: disabled">
+<!ENTITY options_detectdbcs.label "Detect DBCS words">
+<!ENTITY options_newtab.label "Go to the new tab after clicking links in BBS">
+<!ENTITY options_linefeed.label "Line feeds if text is longer than screen">
+<!ENTITY options_askforclose.label "Ask before closing connecting BBS">
+<!ENTITY options_antiidle1.label "After idling">
+<!ENTITY options_antiidle2.label "seconds sends">
+<!ENTITY options_antiidle3.label " - 0 sec: disabled">
+<!ENTITY options_reconnect1.label "Auto-reconnect if connection failed within">
+<!ENTITY options_reconnect2.label "seconds. - 0 sec: disabled">
+<!ENTITY options_autologin.label "Auto Login">
+<!ENTITY options_preloginprompt.label "Prelogin Prompt:">
+<!ENTITY options_prelogin.label "Prelogin String:">
+<!ENTITY options_loginprompt.label "Login Prompt:">
+<!ENTITY options_login.label "User Name:">
+<!ENTITY options_passwordprompt.label "Password Prompt:">
+<!ENTITY options_passwd.label "Password:">
+<!ENTITY options_postlogin.label "Post Login String:">
+<!ENTITY options_addondescription.label "A GNU/GPL telnet client extension specifically designed for BBS browsing.">
+<!ENTITY options_creator.label "Author: Hong Jen Yee">
+<!ENTITY options_download.label "Download">
+<!ENTITY options_downloadurl.label "https://addons.mozilla.org/en-US/firefox/addon/pcman-bbs-extension/">
+<!ENTITY options_homepage.label "Homepage">
+<!ENTITY options_reportbug.label "Report Bugs">
+
